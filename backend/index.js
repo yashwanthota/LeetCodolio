@@ -190,17 +190,6 @@ async function WebScrape(username) {
       return await fetchLeetCodeGraphQL(username);
     } catch (gqlErr) {
       console.log("GraphQL fallback failed:", gqlErr.message);
-
-      // final fallback
-      return dummyData.user1;
-    }
-
-    // fallback to dummy data
-    if (username.toLowerCase().includes("demo") || username.toLowerCase().includes("user1")) {
-      return dummyData.user1;
-    } else if (username.toLowerCase().includes("user2")) {
-      return dummyData.user2;
-    } else {
       return dummyData.user1;
     }
   } finally {

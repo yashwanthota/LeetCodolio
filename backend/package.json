@@ -19,6 +19,7 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
     "express": "^4.19.2",
-    "puppeteer": "^22.15.0"
+    "puppeteer": "^22.15.0",
+    "puppeteer-core": "^25.2.0"
   }
 }
