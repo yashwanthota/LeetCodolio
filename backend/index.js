@@ -21,6 +21,79 @@ const kernel = new Kernel({
   apiKey: process.env.KERNEL_API_KEY,
 });
 
+
+const LEETCODE_GQL = "https://leetcode.com/graphql";
+
+const PROFILE_QUERY = `
+  query userProfile($username: String!) {
+    matchedUser(username: $username) {
+      submitStatsGlobal {
+        acSubmissionNum { difficulty count }
+      }
+      profile { ranking }
+      badges { displayName icon }
+      userCalendar { streak totalActiveDays }
+      tagProblemCounts {
+        advanced      { tagName problemsSolved }
+        intermediate  { tagName problemsSolved }
+        fundamental   { tagName problemsSolved }
+      }
+    }
+    recentAcSubmissionList(username: $username, limit: 15) {
+      title
+    }
+  }
+`;
+
+async function fetchLeetCodeGraphQL(username) {
+  const response = await fetch(LEETCODE_GQL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Referer: "https://leetcode.com",
+    },
+    body: JSON.stringify({
+      query: PROFILE_QUERY,
+      variables: { username },
+    }),
+  });
+
+  const result = await response.json();
+
+  if (!result?.data?.matchedUser) {
+    throw new Error("User not found in GraphQL");
+  }
+
+  const user = result.data.matchedUser;
+
+  const acStats = user.submitStatsGlobal.acSubmissionNum;
+
+  const total  = acStats.find(s => s.difficulty === "All")?.count ?? 0;
+  const easy   = acStats.find(s => s.difficulty === "Easy")?.count ?? 0;
+  const medium = acStats.find(s => s.difficulty === "Medium")?.count ?? 0;
+  const hard   = acStats.find(s => s.difficulty === "Hard")?.count ?? 0;
+
+  const allSkills = [
+    ...user.tagProblemCounts.fundamental,
+    ...user.tagProblemCounts.intermediate,
+    ...user.tagProblemCounts.advanced,
+  ];
+
+  return {
+    TotalAttempted: String(total),
+    SectionAttempted: [easy, medium, hard],
+    ProfileRank: user.profile?.ranking ?? 0,
+    ActiveDays: user.userCalendar?.totalActiveDays ?? 0,
+    NumberOfBadges: user.badges.length,
+    Badges: user.badges.map(b => b.icon),
+    MaxStreak: [user.userCalendar?.streak ?? 0],
+    Skills: allSkills.map(s => s.tagName),
+    elements: allSkills.map(s => s.problemsSolved),
+    RecentlySolveds: result.data.recentAcSubmissionList.map(s => s.title),
+  };
+}
+
+
 async function WebScrape(username) {
   let kernelBrowser;
   let browser;
@@ -113,6 +186,14 @@ async function WebScrape(username) {
     return data;
   } catch (error) {
     console.log(`Error while Scrapping ${error.message}`);
+    try {
+      return await fetchLeetCodeGraphQL(username);
+    } catch (gqlErr) {
+      console.log("GraphQL fallback failed:", gqlErr.message);
+
+      // final fallback
+      return dummyData.user1;
+    }
 
     // fallback to dummy data
     if (username.toLowerCase().includes("demo") || username.toLowerCase().includes("user1")) {
@@ -135,7 +216,51 @@ app.get("/scrape/:username", async (req, res) => {
     res.json(data);
   } catch (error) {
     console.log("Scraping error:", error.message);
-    res.status(500).json({ error: "Failed to scrape data" });
+    try {
+    const res = await fetch(LEETCODE_GQL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Referer": "https://leetcode.com",
+      },
+      body: JSON.stringify({ query: PROFILE_QUERY, variables: { username } }),
+    });
+
+    const { data } = await res.json();
+    const user = data.matchedUser;
+
+    const acStats = user.submitStatsGlobal.acSubmissionNum;
+    const total  = acStats.find((s) => s.difficulty === "All")?.count  ?? 0;
+    const easy   = acStats.find((s) => s.difficulty === "Easy")?.count ?? 0;
+    const medium = acStats.find((s) => s.difficulty === "Medium")?.count ?? 0;
+    const hard   = acStats.find((s) => s.difficulty === "Hard")?.count  ?? 0;
+
+    const allSkills = [
+      ...user.tagProblemCounts.fundamental,
+      ...user.tagProblemCounts.intermediate,
+      ...user.tagProblemCounts.advanced,
+    ];
+
+    const streak = user.userCalendar?.streak ?? 0;
+
+    return {
+      TotalAttempted:   String(total),
+      SectionAttempted: [easy, medium, hard],
+      ProfileRank:      user.profile.ranking ?? 0,
+      ActiveDays:       user.userCalendar?.totalActiveDays ?? 0,
+      NumberOfBadges:   user.badges.length,
+      Badges:           user.badges.map((b) => b.icon),
+      MaxStreak:        [streak],
+      Skills:           allSkills.map((s) => s.tagName),
+      elements:         allSkills.map((s) => s.problemsSolved),
+      RecentlySolveds:  data.recentAcSubmissionList.map((s) => s.title),
+    };
+  } catch (error) {
+    console.log(`Error while Scrapping ${error.message}`);
+    return dummyData.user1;
+  }
+
+    // res.status(500).json({ error: "Failed to scrape data" });
   }
 });
 
