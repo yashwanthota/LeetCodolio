@@ -64,7 +64,7 @@ The frontend is a single-page application built with React that focuses on rende
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/KompallyAkhil/LeetCodolio.git
+git clone https://github.com/yashwanthota/LeetCodolio
 cd LeetCodolio
 ```
 
